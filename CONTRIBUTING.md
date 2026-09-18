@@ -34,16 +34,16 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## Project layout
 
-| Path | What lives there |
-| --- | --- |
-| `src/core/` | Engine, job queue, scheduler, safety checks, content pipeline |
-| `src/ai/` | Gemini text/quality, Imagen, TTS, FFmpeg video assembly |
-| `src/platforms/` | One adapter per social network |
-| `src/plugins/` | Content sources that feed the engine |
-| `src/server/` | Express API, validation schemas and the dashboard |
-| `drizzle/` | SQL migrations |
-| `scripts/` | Developer utilities (seed, model listing, video pipeline test) |
-| `tests/` | Vitest unit tests |
+| Path               | What lives there                                               |
+| ------------------ | -------------------------------------------------------------- |
+| `src/core/`      | Engine, job queue, scheduler, safety checks, content pipeline  |
+| `src/ai/`        | Gemini text/quality, Imagen, TTS, FFmpeg video assembly        |
+| `src/platforms/` | One adapter per social network                                 |
+| `src/plugins/`   | Content sources that feed the engine                           |
+| `src/server/`    | Express API, validation schemas and the dashboard              |
+| `drizzle/`       | SQL migrations                                                 |
+| `scripts/`       | Developer utilities (seed, model listing, video pipeline test) |
+| `tests/`         | Vitest unit tests                                              |
 
 ## Adding a platform adapter
 

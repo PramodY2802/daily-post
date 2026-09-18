@@ -603,6 +603,26 @@ Automating social media comes with responsibilities. Respect each platform's ter
 
 ---
 
+## Connected Platforms
+
+Open Settings -> Connected Platforms, select a project, and connect YouTube.
+Connections belong to project accounts in the existing shared administrator dashboard.
+Enable YouTube Data API v3 and create a Web application OAuth client in Google Cloud.
+Set `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_CALLBACK_URL` in `.env`.
+Register that exact callback in Google Cloud, for example
+`http://localhost:3001/api/connections/youtube/callback`.
+Set `CONNECTION_ENCRYPTION_KEY` to a stable 64-character hex secret generated with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+Retain this key securely with database backups. Run `npm run db:migrate` before startup.
+
+Tokens are encrypted with AES-256-GCM in PostgreSQL. Remove legacy
+`YOUTUBE_REFRESH_TOKEN` environment values and connect each account through Settings.
+Uploads refresh offline credentials automatically without prompting for each post.
+Revoked grants require Reconnect. Google consent screens in Testing can issue
+short-lived refresh grants; configure production consent for ongoing use.
+Google quotas, verification and upload privacy restrictions still apply.
+Instagram, TikTok and X await providers in the new UI; existing adapters remain available.
+
 ## License
 
 This project is licensed under the MIT License â€” see the [LICENSE](LICENSE) file for details.

@@ -30,7 +30,8 @@ export const envSchema = z.object({
 
   YOUTUBE_CLIENT_ID: optionalString(),
   YOUTUBE_CLIENT_SECRET: optionalString(),
-  YOUTUBE_REFRESH_TOKEN: optionalString(),
+  YOUTUBE_CALLBACK_URL: optionalUrl(),
+  CONNECTION_ENCRYPTION_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().regex(/^[a-fA-F0-9]{64}$/).optional()),
 
   TIKTOK_ACCESS_TOKEN: optionalString(),
 

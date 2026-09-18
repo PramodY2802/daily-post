@@ -13,6 +13,7 @@ import { accountsRouter } from './routes/accounts.js';
 import { postsRouter } from './routes/posts.js';
 import { projectsRouter } from './routes/projects.js';
 import { twitterAuthRouter } from './routes/twitter-auth.js';
+import { connectionsRouter } from './routes/connections.js';
 import { basicAuth, errorHandler } from './middleware.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +44,7 @@ export function createServer(): express.Express {
     username: env.DASHBOARD_USERNAME,
     password: env.DASHBOARD_PASSWORD,
     // The OAuth callback is opened by Twitter's redirect and is protected by the one-time oauth_token
-    publicPaths: ['/api/twitter/callback'],
+    publicPaths: ['/api/twitter/callback', '/api/connections/youtube/callback'],
   }));
 
   app.use(express.json({ limit: '1mb' }));
@@ -55,6 +56,7 @@ export function createServer(): express.Express {
   app.use('/api/accounts', accountsRouter);
   app.use('/api/posts', postsRouter);
   app.use('/api/twitter', twitterAuthRouter);
+  app.use('/api/connections', connectionsRouter);
 
   app.get('/', (_req, res) => {
     res.sendFile(path.join(__dirname, 'views', 'index.html'));

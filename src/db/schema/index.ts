@@ -49,6 +49,22 @@ export const accounts = pgTable('accounts', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const platformConnections = pgTable('platform_connections', {
+  accountId: uuid('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  tokens: text('tokens').notNull(),
+  status: varchar('status', { length: 30 }).notNull().default('connected'),
+  externalId: text('external_id').notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const oauthSessions = pgTable('oauth_sessions', {
+  state: text('state').primaryKey(),
+  browserHash: text('browser_hash').notNull(),
+  accountId: uuid('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  verifier: text('verifier').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});
+
 export const posts = pgTable('posts', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id),

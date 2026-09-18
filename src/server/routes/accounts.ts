@@ -53,6 +53,9 @@ accountsRouter.get('/', asyncHandler(async (req, res) => {
 accountsRouter.post('/', asyncHandler(async (req, res) => {
   const body = parseBody(createAccountSchema, req, res);
   if (!body) return;
+  if (body.platform === 'youtube' && Object.keys(body.credentials).length) {
+    res.status(400).json({ error: 'Connect YouTube through Settings instead of entering tokens' }); return;
+  }
 
   const [project] = await db
     .select({ id: schema.projects.id })
@@ -86,6 +89,13 @@ accountsRouter.patch('/:id', asyncHandler(async (req, res) => {
   const id = req.params['id'] as string;
   const updates = parseBody(updateAccountSchema, req, res);
   if (!updates) return;
+  const [existing] = await db.select().from(schema.accounts).where(eq(schema.accounts.id, id)).limit(1);
+  if ((existing?.platform === 'youtube' || updates.platform === 'youtube') && updates.credentials && Object.keys(updates.credentials).length) {
+    res.status(400).json({ error: 'Connect YouTube through Settings instead of entering tokens' }); return;
+  }
+  if (existing?.platform === 'youtube' && updates.platform && updates.platform !== 'youtube') {
+    res.status(400).json({ error: 'Create a separate account for another platform' }); return;
+  }
 
   const [updated] = await db
     .update(schema.accounts)

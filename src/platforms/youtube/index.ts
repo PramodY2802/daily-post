@@ -1,10 +1,10 @@
-import { google, type youtube_v3 } from 'googleapis';
+import { google } from 'googleapis';
 import * as fs from 'fs';
 import { Platform } from '../../config/constants.js';
-import { env } from '../../config/env.js';
 import type { GeneratedContent, PlatformPostResult, PostAnalyticsData } from '../../types/index.js';
 import { BasePlatformAdapter } from '../base.js';
-import { logger } from '../../config/logger.js';
+import { connectedClient, isAuthorizationError, markReconnect } from './connection.js';
+import { NonRetryableError } from '../../core/errors.js';
 import { normalizeHashtag } from '../../core/safety-guard.js';
 import { resolveMediaFile } from '../../core/media.js';
 
@@ -15,37 +15,31 @@ function firstSentence(text: string): string {
 
 export class YouTubeAdapter extends BasePlatformAdapter {
   platform = Platform.YOUTUBE as const;
-  private youtube: youtube_v3.Youtube | null = null;
 
   async init(): Promise<void> {
-    if (!env.YOUTUBE_CLIENT_ID || !env.YOUTUBE_CLIENT_SECRET || !env.YOUTUBE_REFRESH_TOKEN) {
-      logger.warn('YouTube credentials not configured, adapter will be inactive');
-      return;
-    }
-
-    const oauth2Client = new google.auth.OAuth2(
-      env.YOUTUBE_CLIENT_ID,
-      env.YOUTUBE_CLIENT_SECRET,
-    );
-
-    oauth2Client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN });
-
-    this.youtube = google.youtube({ version: 'v3', auth: oauth2Client });
     this.log('Adapter initialized');
   }
 
   async destroy(): Promise<void> {
-    this.youtube = null;
     this.log('Adapter destroyed');
   }
 
-  private getClient(): youtube_v3.Youtube {
-    if (!this.youtube) throw new Error('YouTube adapter not initialized');
-    return this.youtube;
+  private async getClient(accountId: string) {
+    return google.youtube({ version: 'v3', auth: await connectedClient(accountId) });
+  }
+
+  private async connectionFailure(error: unknown, accountId: string): Promise<never> {
+    if (isAuthorizationError(error)) {
+      await markReconnect(accountId);
+      throw new NonRetryableError('YouTube authorization revoked; reconnect in Settings');
+    }
+    const provider = error as { code?: unknown; response?: { status?: number } };
+    const status = provider?.response?.status ?? (typeof provider?.code === 'number' ? provider.code : undefined);
+    throw Object.assign(new Error('YouTube request failed. Check platform quota and account permissions.'), { status });
   }
 
   protected async doPost(content: GeneratedContent, _accountId: string): Promise<PlatformPostResult> {
-    const youtube = this.getClient();
+    const youtube = await this.getClient(_accountId);
     const mediaUrl = content.mediaUrls?.[0];
 
     if (!mediaUrl) {
@@ -86,11 +80,13 @@ export class YouTubeAdapter extends BasePlatformAdapter {
           body: fs.createReadStream(media.filePath),
         },
       });
+    } catch (error) {
+      await this.connectionFailure(error, _accountId);
     } finally {
       media.cleanup();
     }
 
-    const videoId = res.data.id;
+    const videoId = res!.data.id;
     if (!videoId) {
       return { success: false, error: 'YouTube upload returned no video ID' };
     }
@@ -104,19 +100,19 @@ export class YouTubeAdapter extends BasePlatformAdapter {
   }
 
   protected async doDelete(platformPostId: string, _accountId: string): Promise<boolean> {
-    const youtube = this.getClient();
-    await youtube.videos.delete({ id: platformPostId });
+    const youtube = await this.getClient(_accountId);
+    await youtube.videos.delete({ id: platformPostId }).catch(error => this.connectionFailure(error, _accountId));
     this.log('Video deleted', { platformPostId });
     return true;
   }
 
   protected async doGetAnalytics(platformPostId: string, _accountId: string): Promise<PostAnalyticsData> {
-    const youtube = this.getClient();
+    const youtube = await this.getClient(_accountId);
 
     const res = await youtube.videos.list({
       part: ['statistics'],
       id: [platformPostId],
-    });
+    }).catch(error => this.connectionFailure(error, _accountId));
 
     const stats = res.data.items?.[0]?.statistics;
 

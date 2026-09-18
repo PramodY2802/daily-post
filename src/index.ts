@@ -19,9 +19,7 @@ function registerAdapters(): void {
     engine.registerAdapter(new InstagramAdapter());
   }
 
-  if (env.YOUTUBE_CLIENT_ID) {
-    engine.registerAdapter(new YouTubeAdapter());
-  }
+  engine.registerAdapter(new YouTubeAdapter());
 
   if (env.TIKTOK_ACCESS_TOKEN) {
     engine.registerAdapter(new TikTokAdapter());

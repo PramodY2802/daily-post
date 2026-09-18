@@ -237,6 +237,7 @@
           Posts
           <span class="nav-badge" id="nav-posts-count">0</span>
         </button>
+        <button class="nav-item" data-tab="settings">Settings</button>
       </nav>
       <div class="sidebar-footer">
         <p onclick="window.location.href='https://pramod-potfolio.vercel.app/'" style="color: var(--text-secondary); font-size: 0.8rem; cursor: pointer;">Pramod Portfolio</p>
@@ -245,6 +246,12 @@
 
     <!-- MAIN CONTENT -->
     <main class="main">
+      <div class="tab-content" id="tab-settings">
+        <div class="page-header"><div><h2>Settings</h2></div></div>
+        <h3 style="margin-bottom:16px">Connected Platforms</h3>
+        <div class="filters"><select id="connections-project" aria-label="Project" onchange="loadConnections()"></select></div>
+        <div id="connections-list" aria-live="polite"></div>
+      </div>
 
       <!-- DASHBOARD TAB -->
       <div class="tab-content active" id="tab-dashboard">
@@ -465,6 +472,62 @@
     let projectsMap = {};
     let accountsById = {};
 
+    async function loadConnections() {
+      const list = document.getElementById('connections-list');
+      list.textContent = 'Loading connections...';
+      try {
+        const select = document.getElementById('connections-project');
+        const selected = select.value;
+        const allProjects = await api('/api/projects');
+        select.innerHTML = allProjects.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+        if (allProjects.some(p => p.id === selected)) select.value = selected;
+        if (!select.value) { list.textContent = 'No projects'; return; }
+        const platforms = await api('/api/connections?projectId=' + select.value);
+        const names = { youtube: 'YouTube', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X' };
+        list.innerHTML = platforms.map(p => `<section style="border-bottom:1px solid var(--border);padding:20px 0"><h4>${names[p.platform]}</h4>${
+          p.supported ? (p.accounts.length ? p.accounts : [{ username: '', status: 'disconnected' }]).map(a => `
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px">
+              <span>${esc(a.username)}</span><span class="badge ${a.status === 'connected' ? 'badge-active' : 'badge-inactive'}">${a.status === 'connected' ? 'Connected' : a.status === 'reconnect' ? 'Reconnect required' : 'Disconnected'}</span>
+              ${a.status !== 'connected' ? `<button class="btn btn-primary btn-sm" ${!p.configured ? 'disabled' : ''} onclick="connectYouTube('${a.id || ''}')">${a.status === 'reconnect' ? 'Reconnect' : 'Connect'}</button>` : `<button class="btn btn-ghost btn-sm" onclick="verifyConnection('${a.id}')">Verify</button>`}
+              ${a.status !== 'disconnected' ? `<button class="btn btn-danger btn-sm" onclick="disconnectConnection('${a.id}')">Disconnect</button>` : ''}
+            </div>`).join('') + (!p.configured ? '<p style="margin-top:12px">Connection unavailable</p>' : '') : '<button class="btn btn-ghost btn-sm" disabled style="margin-top:12px">Connect</button><span style="margin-left:12px">Not available yet</span>'
+        }</section>`).join('');
+      } catch (e) { list.textContent = e.message; }
+    }
+    async function connectYouTube(id) {
+      try {
+        const data = await api('/api/connections/youtube/connect', { method: 'POST', body: { projectId: document.getElementById('connections-project').value, ...(id ? { accountId: id } : {}) } });
+        window.location.assign(data.url);
+      } catch (e) {
+        if (e.status === 409 && e.data?.redirectUrl) {
+          window.location.assign(e.data.redirectUrl);
+          return;
+        }
+        toast(e.message, 'error');
+      }
+    }
+    async function verifyConnection(id) {
+      try { await api('/api/connections/' + id + '/verify', { method: 'POST' }); toast('Connection verified'); }
+      catch (e) { toast(e.message, 'error'); }
+      await loadConnections();
+    }
+    async function disconnectConnection(id) {
+      if (!confirm('Disconnect YouTube? Automatic publishing will stop.')) return;
+      try {
+        const data = await api('/api/connections/' + id + '/disconnect', { method: 'POST' });
+        toast(data.revoked ? 'YouTube disconnected' : 'Disconnected locally. Remove Daily Post access in your Google account if needed.');
+        await loadConnections();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      if (location.hash === '#settings') {
+        document.querySelector('[data-tab="settings"]').click();
+        const outcome = new URLSearchParams(location.search).get('connection');
+        if (outcome) toast(outcome === 'connected' ? 'YouTube connected' : outcome === 'cancelled' ? 'Connection cancelled' : 'Connection failed. Grant all requested permissions and try again.', outcome === 'connected' ? 'success' : 'error');
+        history.replaceState(null, '', '/#settings');
+      }
+    });
+
     // â”€â”€ Toast â”€â”€
     function toast(msg, type = 'success') {
       const el = document.createElement('div');
@@ -481,7 +544,7 @@
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         item.classList.add('active');
         document.getElementById('tab-' + item.dataset.tab).classList.add('active');
-        const loader = { dashboard: loadDashboard, projects: loadProjects, accounts: loadAccounts, posts: loadPosts };
+        const loader = { dashboard: loadDashboard, projects: loadProjects, accounts: loadAccounts, posts: loadPosts, settings: loadConnections };
         loader[item.dataset.tab]?.();
       });
     });
@@ -503,7 +566,7 @@
     // â”€â”€ API Helper â”€â”€
     async function api(url, opts = {}) {
       const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'DailyPost' },
         ...opts,
         body: opts.body ? JSON.stringify(opts.body) : undefined,
       });
